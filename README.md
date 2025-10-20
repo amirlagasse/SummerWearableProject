@@ -41,11 +41,13 @@ Ultimately, the project serves as a research and prototyping platform for future
 ```bash
 cd flutter_app
 flutter run
-Streamlit Dashboard (Older Build)
+
+### Flutter App (Current Build)
 cd older_builds/Streamlit_App
 pip install -r requirements.txt
 streamlit run app.py
-Kivy Prototype (Earliest Build)
+
+###Kivy Prototype (Earliest Build)
 cd older_builds/Kivy_App
 pip install -r requirements.txt
 python main.py
