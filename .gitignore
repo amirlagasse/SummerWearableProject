@@ -23,3 +23,8 @@ flutter_app/web/
 
 # Logs
 *.log
+# Arduino build and temp files
+arduino_code/build/
+arduino_code/.arduino-build/
+arduino_code/*.hex
+arduino_code/*.bin
