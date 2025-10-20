@@ -41,13 +41,28 @@ Ultimately, the project serves as a research and prototyping platform for future
 ```bash
 cd flutter_app
 flutter run
+```
 
-### Flutter App (Current Build)
+### Streamlit Dashboard (Older Build)
+```bash
 cd older_builds/Streamlit_App
 pip install -r requirements.txt
 streamlit run app.py
+```
 
-###Kivy Prototype (Earliest Build)
+### Kivy Prototype (Earliest Build)
+```bash
 cd older_builds/Kivy_App
 pip install -r requirements.txt
 python main.py
+```
+
+---
+
+## Development Timeline
+
+1. **Kivy App** — initial BLE and visualization prototype  
+2. **Streamlit App** — browser-based analytics dashboard  
+3. **Flutter App** — full native mobile implementation  
+4. **Arduino Firmware** — embedded data collection and logging layer
+
