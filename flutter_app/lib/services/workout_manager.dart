@@ -132,6 +132,23 @@ class WorkoutManager {
     await _persistDeleted(const <WorkoutSession>[]);
   }
 
+  Future<void> restoreSession(String id) async {
+    final deletedSessions = recentlyDeleted.value;
+    final index = deletedSessions.indexWhere((session) => session.id == id);
+    if (index == -1) return;
+
+    final session = deletedSessions[index];
+    final updatedDeleted = List<WorkoutSession>.from(deletedSessions)
+      ..removeAt(index);
+    recentlyDeleted.value = updatedDeleted;
+    await _persistDeleted(updatedDeleted);
+
+    final updatedSessions = <WorkoutSession>[session, ...sessions.value]
+      ..sort((a, b) => b.startTime.compareTo(a.startTime));
+    sessions.value = updatedSessions;
+    await _persistSessions(updatedSessions);
+  }
+
   Future<void> _persistSessions(List<WorkoutSession> sessions) async {
     final file = await _sessionsFile();
     await file.writeAsString(WorkoutSession.encodeList(sessions));

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/heart_rate_sample.dart';
 import '../services/heart_rate_manager.dart';
 import '../widgets/heart_rate_chart.dart';
+import 'full_screen_heart_rate_chart_page.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,8 +18,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       GlobalKey<HeartRateChartState>();
 
   late DateTime _selectedDay;
-  bool _selectionZoomEnabled = false;
-  bool _chartInteractionLocked = false;
 
   @override
   void initState() {
@@ -69,9 +68,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       }
 
                       return SingleChildScrollView(
-                        physics: _chartInteractionLocked
-                            ? const NeverScrollableScrollPhysics()
-                            : const BouncingScrollPhysics(),
+                        physics: const BouncingScrollPhysics(),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
                           vertical: 24,
@@ -87,8 +84,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               history: historySorted,
                               displayDay: _selectedDay,
                               today: today,
-                              resetZoom: () =>
-                                  _chartKey.currentState?.resetView(),
                             ),
                           ],
                         ),
@@ -207,7 +202,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required List<HeartRateSample> history,
     required DateTime displayDay,
     required DateTime today,
-    required VoidCallback resetZoom,
   }) {
     final bool isToday = _isSameDay(displayDay, today);
     final bool isFuture = displayDay.isAfter(today);
@@ -218,24 +212,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final message = isFuture
         ? 'This date is in the future.'
         : 'No data recorded on this day.';
-
-    if (!interactive && _chartInteractionLocked) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _setChartInteractionLocked(false);
-        }
-      });
-    }
-
-    if (!interactive && _selectionZoomEnabled) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _selectionZoomEnabled = false;
-          });
-        }
-      });
-    }
 
     return Card(
       child: Padding(
@@ -293,79 +269,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 16),
             SizedBox(
               height: 260,
-              child: Listener(
-                onPointerDown: interactive
-                    ? (_) => _setChartInteractionLocked(true)
-                    : null,
-                onPointerUp: interactive
-                    ? (_) => _setChartInteractionLocked(false)
-                    : null,
-                onPointerCancel: interactive
-                    ? (_) => _setChartInteractionLocked(false)
-                    : null,
-                child: Stack(
-                  children: [
-                    Opacity(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Opacity(
                       opacity: interactive ? 1 : 0.25,
-                      child: IgnorePointer(
-                        ignoring: !interactive,
-                        child: HeartRateChart(
-                          key: _chartKey,
-                          samples: history,
-                          selectedDay: displayDay,
-                          enableSelectionZoom:
-                              interactive && _selectionZoomEnabled,
-                          interactive: interactive,
-                          onTrackballActive: _setChartInteractionLocked,
-                        ),
+                      child: HeartRateChart(
+                        key: _chartKey,
+                        samples: history,
+                        selectedDay: displayDay,
+                        interactive: false,
+                        enableCursor: false,
                       ),
                     ),
-                    if (!interactive)
-                      Positioned.fill(
-                        child: Center(
-                          child: Text(
-                            message,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
+                  ),
+                  if (interactive)
+                    Positioned(
+                      bottom: 44,
+                      right: 8,
+                      child: IconButton(
+                        tooltip: 'Fullscreen',
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.black45,
+                        ),
+                        icon: const Icon(Icons.fullscreen, color: Colors.white),
+                        onPressed: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => FullScreenHeartRateChartPage(
+                                samples: history,
+                                selectedDay: displayDay,
+                              ),
                             ),
+                          );
+                          if (!mounted) return;
+                          setState(() {
+                            _chartKey.currentState?.resetView();
+                          });
+                        },
+                      ),
+                    ),
+                  if (!interactive)
+                    Positioned.fill(
+                      child: Center(
+                        child: Text(
+                          message,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
                           ),
                         ),
                       ),
-                  ],
-                ),
-              ),
-            ),
-            if (interactive) ...[
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _selectionZoomEnabled = !_selectionZoomEnabled;
-                      });
-                    },
-                    icon: Icon(
-                      _selectionZoomEnabled
-                          ? Icons.crop_free
-                          : Icons.touch_app_outlined,
                     ),
-                    label: Text(
-                      _selectionZoomEnabled
-                          ? 'Selection zoom on'
-                          : 'Selection zoom off',
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: resetZoom,
-                    icon: const Icon(Icons.zoom_out_map, size: 16),
-                    label: const Text('Reset'),
-                  ),
                 ],
               ),
-            ],
+            ),
             if (!hasSamples && !isFuture)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
@@ -384,13 +342,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   DateTime _floorToDay(DateTime value) =>
       DateTime(value.year, value.month, value.day);
-
-  void _setChartInteractionLocked(bool locked) {
-    if (_chartInteractionLocked == locked) return;
-    setState(() {
-      _chartInteractionLocked = locked;
-    });
-  }
 
   bool _isOnSelectedDay(DateTime timestamp, {required DateTime selectedDay}) {
     final dayStart = _floorToDay(selectedDay);

@@ -408,9 +408,23 @@ class _WorkoutLogScreenState extends State<WorkoutLogScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      session.workoutType,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            session.workoutType,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _restoreWorkout(session),
+                          icon: const Icon(Icons.restore_outlined),
+                          label: const Text('Restore'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -515,6 +529,12 @@ class _WorkoutLogScreenState extends State<WorkoutLogScreen> {
       'Started $_selectedWorkout session',
       icon: Icons.play_arrow,
     );
+  }
+
+  Future<void> _restoreWorkout(WorkoutSession session) async {
+    await _workoutManager.restoreSession(session.id);
+    if (!mounted) return;
+    showAppSnackBar(context, 'Workout restored', icon: Icons.restore_outlined);
   }
 
   Future<void> _confirmStopWorkout() async {
