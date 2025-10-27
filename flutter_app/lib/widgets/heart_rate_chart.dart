@@ -10,7 +10,7 @@ class HeartRateChart extends StatefulWidget {
     required this.samples,
     required this.selectedDay,
     required this.interactive,
-    required this.enableCursor, // kept for API compatibility; ignored
+    required this.enableCursor, // retained for API compatibility
     this.enableSelectionZoom = false,
     this.onTrackballActive,
   });
@@ -27,8 +27,6 @@ class HeartRateChart extends StatefulWidget {
 }
 
 class HeartRateChartState extends State<HeartRateChart> {
-  static const Duration _gapThreshold = Duration(seconds: 30);
-
   ZoomPanBehavior _zoomPanBehavior = ZoomPanBehavior(zoomMode: ZoomMode.x);
 
   DateTimeIntervalType _intervalType = DateTimeIntervalType.hours;
@@ -36,29 +34,17 @@ class HeartRateChartState extends State<HeartRateChart> {
 
   DateTime? _visibleMin;
   DateTime? _visibleMax;
-
   late DateTime _dayStart;
   late DateTime _dayEnd;
 
-  @override
-  void didUpdateWidget(covariant HeartRateChart oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedDay != widget.selectedDay) {
-      _resetVisibleRange();
-    }
-  }
-
   void resetView() {
     _zoomPanBehavior.reset();
-    _resetVisibleRange();
-    setState(() {});
-  }
-
-  void _resetVisibleRange() {
-    _intervalType = DateTimeIntervalType.hours;
-    _interval = 1;
-    _visibleMin = null;
-    _visibleMax = null;
+    setState(() {
+      _intervalType = DateTimeIntervalType.hours;
+      _interval = 1;
+      _visibleMin = null;
+      _visibleMax = null;
+    });
   }
 
   @override
@@ -69,7 +55,6 @@ class HeartRateChartState extends State<HeartRateChart> {
       widget.selectedDay.day,
     );
     final dayEnd = dayStart.add(const Duration(days: 1));
-
     final points = widget.samples
         .where(
           (sample) =>
@@ -112,9 +97,9 @@ class HeartRateChartState extends State<HeartRateChart> {
         _zoomPanBehavior = ZoomPanBehavior(
           zoomMode: ZoomMode.x,
           enablePanning: widget.interactive,
-          enablePinching: widget.interactive,
+          enablePinching: widget.interactive && widget.enableSelectionZoom,
           enableDoubleTapZooming: widget.interactive,
-          enableSelectionZooming: false,
+          enableSelectionZooming: widget.interactive && widget.enableSelectionZoom,
         );
 
         return SfCartesianChart(
@@ -132,80 +117,6 @@ class HeartRateChartState extends State<HeartRateChart> {
     );
   }
 
-  List<CartesianSeries<dynamic, DateTime>> _buildSeries(
-    List<HeartRateSample> points,
-  ) {
-    if (points.isEmpty) return const [];
-
-    final List<List<HeartRateSample>> solidSegments = [];
-    final List<List<_GapPoint>> gapSegments = [];
-
-    List<HeartRateSample> currentSegment = [points.first];
-    for (int i = 1; i < points.length; i++) {
-      final prev = points[i - 1];
-      final current = points[i];
-      final diff = current.timestamp.difference(prev.timestamp).abs();
-      if (diff > _gapThreshold) {
-        if (currentSegment.isNotEmpty) {
-          solidSegments.add(List<HeartRateSample>.from(currentSegment));
-        }
-        gapSegments.add([
-          _GapPoint(prev.timestamp, prev.bpm.toDouble()),
-          _GapPoint(current.timestamp, current.bpm.toDouble()),
-        ]);
-        currentSegment = [current];
-      } else {
-        currentSegment.add(current);
-      }
-    }
-    if (currentSegment.isNotEmpty) {
-      solidSegments.add(List<HeartRateSample>.from(currentSegment));
-    }
-
-    final Color strokeColor = const Color(0xFFEC5766);
-    final Color fillColor = const Color.fromRGBO(236, 87, 102, 0.18);
-    final List<CartesianSeries<dynamic, DateTime>> series = [];
-
-    for (final segment in solidSegments) {
-      if (segment.isEmpty) continue;
-      series
-        ..add(
-          AreaSeries<HeartRateSample, DateTime>(
-            dataSource: segment,
-            xValueMapper: (sample, _) => sample.timestamp,
-            yValueMapper: (sample, _) => sample.bpm,
-            color: fillColor,
-            borderColor: Colors.transparent,
-            borderWidth: 0,
-          ),
-        )
-        ..add(
-          LineSeries<HeartRateSample, DateTime>(
-            dataSource: segment,
-            xValueMapper: (sample, _) => sample.timestamp,
-            yValueMapper: (sample, _) => sample.bpm,
-            color: strokeColor,
-            width: 2,
-          ),
-        );
-    }
-
-    for (final gap in gapSegments) {
-      series.add(
-        LineSeries<_GapPoint, DateTime>(
-          dataSource: gap,
-          xValueMapper: (point, _) => point.timestamp,
-          yValueMapper: (point, _) => point.bpm,
-          dashArray: const [8, 4],
-          color: strokeColor.withAlpha(180),
-          width: 2,
-        ),
-      );
-    }
-
-    return series;
-  }
-
   void _handleRangeChanged(ActualRangeChangedArgs args) {
     final min = args.visibleMin;
     final max = args.visibleMax;
@@ -218,6 +129,9 @@ class HeartRateChartState extends State<HeartRateChart> {
     if (!newMax.isAfter(newMin)) {
       newMax = newMin.add(const Duration(seconds: 1));
     }
+
+    args.visibleMin = newMin;
+    args.visibleMax = newMax;
 
     if (_visibleMin != newMin || _visibleMax != newMax) {
       setState(() {
@@ -268,9 +182,81 @@ class HeartRateChartState extends State<HeartRateChart> {
     }
 
     if (type != _intervalType || interval != _interval) {
-      _intervalType = type;
-      _interval = interval;
+      setState(() {
+        _intervalType = type;
+        _interval = interval;
+      });
     }
+  }
+
+  List<CartesianSeries<dynamic, DateTime>> _buildSeries(
+    List<HeartRateSample> points,
+  ) {
+    if (points.isEmpty) return const [];
+
+    final List<List<HeartRateSample>> solidSegments = [];
+    final List<List<_GapPoint>> gapSegments = [];
+
+    List<HeartRateSample> current = [points.first];
+    for (int i = 1; i < points.length; i++) {
+      final prev = points[i - 1];
+      final curr = points[i];
+      if (curr.timestamp.difference(prev.timestamp).abs() > const Duration(seconds: 30)) {
+        if (current.isNotEmpty) {
+          solidSegments.add(List<HeartRateSample>.from(current));
+          current.clear();
+        }
+        gapSegments.add([
+          _GapPoint(prev.timestamp, prev.bpm.toDouble()),
+          _GapPoint(curr.timestamp, curr.bpm.toDouble()),
+        ]);
+      }
+      current.add(curr);
+    }
+    if (current.isNotEmpty) {
+      solidSegments.add(List<HeartRateSample>.from(current));
+    }
+
+    final Color strokeColor = const Color(0xFFEC5766);
+    final Color fillColor = const Color.fromRGBO(236, 87, 102, 0.18);
+    final List<CartesianSeries<dynamic, DateTime>> series = [];
+
+    for (final segment in solidSegments) {
+      series
+        ..add(
+          AreaSeries<HeartRateSample, DateTime>(
+            dataSource: segment,
+            xValueMapper: (sample, _) => sample.timestamp,
+            yValueMapper: (sample, _) => sample.bpm,
+            color: fillColor,
+            borderWidth: 0,
+          ),
+        )
+        ..add(
+          LineSeries<HeartRateSample, DateTime>(
+            dataSource: segment,
+            xValueMapper: (sample, _) => sample.timestamp,
+            yValueMapper: (sample, _) => sample.bpm,
+            color: strokeColor,
+            width: 2,
+          ),
+        );
+    }
+
+    for (final gap in gapSegments) {
+      series.add(
+        LineSeries<_GapPoint, DateTime>(
+          dataSource: gap,
+          xValueMapper: (point, _) => point.timestamp,
+          yValueMapper: (point, _) => point.bpm,
+          color: strokeColor.withValues(alpha: 0.75),
+          dashArray: const [8, 4],
+          width: 2,
+        ),
+      );
+    }
+
+    return series;
   }
 
   DateFormat _buildDateFormat() {
